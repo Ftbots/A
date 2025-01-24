@@ -1,8 +1,7 @@
-# Telegram Bot API Credentials
-API_ID = 12345678  # Your Telegram API ID
-API_HASH = "your_api_hash_here"  # Your Telegram API Hash
-BOT_TOKEN = "your_telegram_bot_token_here"  # Your Telegram Bot Token
+API_ID = 26042863  # Your Telegram API ID
+API_HASH = "d4fabc00b0345cd3f0ccdc0c9b750f6e"  # Your Telegram API Hash
+BOT_TOKEN = "7684406232:AAHOKnaKpHJQyChH1YmlsmzS86ZcU1vQByE"  # Your Telegram Bot Token
 
 # Mega Account Credentials
-MEGA_EMAIL = "your_mega_email@example.com"
-MEGA_PASSWORD = "your_mega_password"
+MEGA_EMAIL = "logkithog442@fanclub.pm"
+MEGA_PASSWORD = "Hehe@2580"
