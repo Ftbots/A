@@ -26,6 +26,23 @@ async def upload_to_mega(file_path):
         logging.error(f"Mega upload error: {e}")
         return None
 
+# Function to safely extract file name and extension
+def get_file_name_and_ext(document):
+    try:
+        if document.name:
+            return document.name, document.name.split('.')[-1]
+    except:
+      pass
+    try:
+      if document.attributes:
+        for attribute in document.attributes:
+          if isinstance(attribute,types.DocumentAttributeFilename):
+            return attribute.file_name, attribute.file_name.split('.')[-1]
+    except:
+      pass
+    #Fallback if no name and attributes
+    return str(document.id),""
+
 
 # Bot's main message handler
 @bot.on(events.NewMessage)
@@ -34,8 +51,10 @@ async def handle_message(event):
     if event.message.document:
         try:
             logging.info(f"Received file from: {event.sender_id}")
-            # Download the file
-            file_path = f"downloaded_file_{event.id}.{event.message.document.name.split('.')[-1]}"
+            # Extract file name and extension from document
+            file_name, file_ext = get_file_name_and_ext(event.message.document)
+            file_path = f"downloaded_file_{event.id}.{file_ext}"
+            
             logging.info(f"Downloading to {file_path}")
             await bot.download_media(event.message.document, file=file_path)
 
