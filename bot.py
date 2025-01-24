@@ -1,6 +1,7 @@
 import logging
 from telethon import TelegramClient, events, functions, types
 from mega import Mega
+import os
 
 # Import configuration from config.py
 from config import API_ID, API_HASH, BOT_TOKEN, MEGA_EMAIL, MEGA_PASSWORD
@@ -29,11 +30,12 @@ async def upload_to_mega(file_path):
 # Bot's main message handler
 @bot.on(events.NewMessage)
 async def handle_message(event):
+    file_path = None
     if event.message.document:
         try:
             logging.info(f"Received file from: {event.sender_id}")
             # Download the file
-            file_path = f"downloaded_file_{event.id}.{event.message.document.file.ext}"
+            file_path = f"downloaded_file_{event.id}.{event.message.document.name.split('.')[-1]}"
             logging.info(f"Downloading to {file_path}")
             await bot.download_media(event.message.document, file=file_path)
 
@@ -50,8 +52,7 @@ async def handle_message(event):
             logging.error(f"Error processing message: {e}")
             await event.respond("Error processing file upload")
         finally:
-           import os
-           if os.path.exists(file_path):
+           if file_path and os.path.exists(file_path):
                os.remove(file_path)
                logging.info(f"Removed downloaded file: {file_path}")
 
