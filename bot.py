@@ -166,7 +166,6 @@ async def download_progress_callback_helper(current, total, message, start_time,
 async def upload_to_mega(file_path, message, current_mega_account, max_retries=3):
     for attempt in range(max_retries):
         try:
-           
             start_time = time.time()
             total_size = os.path.getsize(file_path)
             uploaded_size = 0
@@ -175,6 +174,9 @@ async def upload_to_mega(file_path, message, current_mega_account, max_retries=3
             mega = Mega()
             m = mega.login(current_mega_account['email'], current_mega_account['password'])
 
+            # *********** NEW: Initialize progress to 0 ***********
+            await upload_progress_callback(0, total_size, message, start_time, True)  
+             
             # Use m.upload with file path
             mega_file = m.upload(file_path)
             
@@ -184,7 +186,18 @@ async def upload_to_mega(file_path, message, current_mega_account, max_retries=3
                 if current_size > uploaded_size:
                     uploaded_size = current_size
                     await upload_progress_callback(uploaded_size, total_size, message, start_time, True)
-            
+                else:
+                    # Check every second
+                    await asyncio.sleep(1)
+                    uploaded_size = os.path.getsize(file_path)
+                    await upload_progress_callback(uploaded_size, total_size, message, start_time, True)
+                    
+                
+                # To check every 10 second the progress
+                if time.time() - start_time > 10 :
+                   await upload_progress_callback(uploaded_size, total_size, message, start_time, True)    
+                   start_time = time.time()
+                    
             return m.get_upload_link(mega_file)
             
         except Exception as e:
