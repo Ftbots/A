@@ -201,9 +201,6 @@ accounts = load_accounts()
 # Store currently selected Mega account for each user
 user_accounts = {}
 
-# Store queues for each user
-user_queues = {}
-
 # Function to add a new Mega account
 @bot.on(events.NewMessage(pattern=r'/addmega\s+(?P<email>[^\s]+)\s+(?P<password>.+)'))
 async def add_mega_account(event):
@@ -285,56 +282,14 @@ async def remove_mega_account(event):
         logging.error(f"Failed to remove account for user: {event.sender_id}, Error: {e}")
         await event.respond(f"Failed to remove account. Error: {e}")
 
-
-# Modify the default message handler
+# Default bot's main message handler
 @bot.on(events.NewMessage)
 async def handle_message_default(event):
     if event.is_private and not event.message.text.startswith('/'):
-      logging.info(f"Starting handle_message from: {event.sender_id}")
-      user_id = str(event.sender_id)
-
-      # Check if the message is a forward
-      if event.message.forward:
-        logging.info(f"Received a forwarded message from: {event.sender_id}")
-        
-        # Check if the forwarded message has media
+        logging.info(f"Starting handle_message from: {event.sender_id}")
+        file_path = None
         if event.message.media:
-            logging.info(f"Forwarded message contains media")
-
-            # Check if file type is supported
-            file_name, file_ext = get_file_name_and_ext(event.message.media)
-            if file_name:
-              logging.info(f"Supported file type detected {file_name}")
-            
-              # Add the forwarded message to user's queue
-              if user_id not in user_queues:
-                user_queues[user_id] = []
-              user_queues[user_id].append(event.message)
-              
-              queue_position = len(user_queues[user_id])
-              await event.respond(f"File added to queue. Your position is: {queue_position}")
-
-              # Log the queue
-              logging.info(f"Current user queue: {user_queues[user_id]}")
-
-            else:
-                logging.info(f"Unsupported file type in forwarded message: {event.sender_id}")
-                await event.respond("Unsupported file type. Please forward files with supported formats.")
-            
-            # Start the upload process if not already in progress
-            if not hasattr(handle_message_default, 'is_uploading') or not handle_message_default.is_uploading:
-              handle_message_default.is_uploading = True
-              asyncio.create_task(process_upload_queue(user_id))
-        else:
-            logging.info(f"Forwarded message has no media: {event.sender_id}")
-            await event.respond("Forwarded message has no media to process.")
-      
-      else:
-        # If not forwarded message, handle as usual
-          logging.info(f"Received a direct file from: {event.sender_id}")
-          file_path = None
-          if event.message.media:
-              try:
+            try:
                 logging.info(f"Received media from: {event.sender_id}")
                 
                 media = event.message.media
@@ -344,7 +299,7 @@ async def handle_message_default(event):
                 file_name, file_ext = get_file_name_and_ext(media)
                 
                 if file_name is not None:
-                  file_path = f"downloaded_file_{event.id}.{file_ext}"
+                    file_path = f"downloaded_file_{event.id}.{file_ext}"
                 else:
                     logging.error("File name is None")
                     await event.respond("Error processing file upload")
@@ -367,7 +322,7 @@ async def handle_message_default(event):
                 logging.info(f"File size after download: {file_size_after_download}")
 
                 # Get current mega account of user, use the first if no current mega account found
-                
+                user_id = str(event.sender_id)
                 current_mega_account = None
                 if user_id in user_accounts and user_accounts[user_id]:
                   current_mega_account = user_accounts[user_id]
@@ -386,116 +341,15 @@ async def handle_message_default(event):
                    await bot.edit_message(progress_message, f"File uploaded to Mega: {mega_link}")
                 else:
                    await bot.edit_message(progress_message, "Failed to upload file to Mega.")
-              except Exception as e:
+            except Exception as e:
                 logging.error(f"Error processing message: {e}")
                 await event.respond("Error processing file upload")
-              finally:
-                  if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
-                    logging.info(f"Removed downloaded file: {file_path}")
-          logging.info(f"Finished handle_message from: {event.sender_id}")
+            finally:
+                if file_path and os.path.exists(file_path):
+                  os.remove(file_path)
+                  logging.info(f"Removed downloaded file: {file_path}")
+        logging.info(f"Finished handle_message from: {event.sender_id}")
 
-
-# New function to process upload queue
-async def process_upload_queue(user_id):
-    logging.info(f"Starting process_upload_queue for user: {user_id}")
-    
-    while True:
-      if user_id not in user_queues or not user_queues[user_id]:
-        handle_message_default.is_uploading = False
-        logging.info(f"No files in queue, process_upload_queue finished for user: {user_id}")
-        break;
-      
-      # Get the first 10 elements of the user queue or less
-      messages_to_upload = user_queues[user_id][:10]
-      
-      logging.info(f"Processing a batch of {len(messages_to_upload)} files for user: {user_id}")
-
-      # Check if there's a mega account for the user
-      current_mega_account = None
-      if user_id in user_accounts and user_accounts[user_id]:
-          current_mega_account = user_accounts[user_id]
-      elif user_id in accounts and accounts[user_id]:
-          current_mega_account = accounts[user_id][0]
-      else:
-          logging.error(f"No Mega account configured for user: {user_id}")
-          
-          # Remove the messages from the queue
-          del user_queues[user_id][:len(messages_to_upload)]
-          
-          for message in messages_to_upload:
-             await bot.send_message(message.chat_id, "No Mega account configured. Use /addmega <email> <password> to add one.")
-          continue
-      
-      # Upload the batch of files
-      await process_batch_uploads(user_id, messages_to_upload, current_mega_account)
-
-      # Remove the processed messages from the queue
-      del user_queues[user_id][:len(messages_to_upload)]
-
-      logging.info(f"Batch finished. {len(user_queues[user_id])} files remaining in the queue for user: {user_id}")
-      
-      # If there is something to process wait for some time before proceeding
-      if user_id in user_queues and user_queues[user_id]:
-          await asyncio.sleep(5)
-      
-# New function to process the batch upload logic without concurrency
-async def process_batch_uploads(user_id, messages, current_mega_account):
-  logging.info(f"Starting process_batch_uploads for user: {user_id}, file count {len(messages)}")
-  
-  # Loop through messages in the batch
-  for message in messages:
-      file_path = None
-      try:
-          logging.info(f"Processing message: {message.id} for user: {user_id}")
-          
-          media = message.media
-
-          # Extract file name and extension
-          file_name, file_ext = get_file_name_and_ext(media)
-          
-          if file_name is not None:
-            file_path = f"downloaded_file_{message.id}.{file_ext}"
-          else:
-              logging.error(f"File name is None, skipping this message: {message.id}")
-              await bot.send_message(message.chat_id, "Error processing file upload")
-              continue
-              
-          # Log file type
-          if isinstance(media, types.MessageMediaDocument) and hasattr(media, 'document') and media.document:
-              logging.info(f"File MIME type: {media.document.mime_type}")
-              # Before Download
-              logging.info(f"File size before download: {media.document.size}")
-
-          start_time = time.time()
-          progress_message = await bot.send_message(message.chat_id, "Starting download...")
-
-          logging.info(f"Downloading to {file_path}")
-          await bot.download_media(message, file=file_path, progress_callback=lambda current, total: download_progress_callback_helper(current, total, progress_message, start_time, True))
-
-          # After Download
-          file_size_after_download = os.path.getsize(file_path)
-          logging.info(f"File size after download: {file_size_after_download}")
-          
-          # Upload the file to Mega
-          logging.info("Uploading to mega")
-          await bot.edit_message(progress_message, "Starting upload...")
-          mega_link = await upload_to_mega(file_path, progress_message, current_mega_account)
-
-          if mega_link:
-            await bot.edit_message(progress_message, f"File uploaded to Mega: {mega_link}")
-          else:
-            await bot.edit_message(progress_message, "Failed to upload file to Mega.")
-
-      except Exception as e:
-          logging.error(f"Error processing message {message.id}: {e}")
-          await bot.send_message(message.chat_id, "Error processing file upload")
-      finally:
-          if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            logging.info(f"Removed downloaded file: {file_path}")
-  
-  logging.info(f"Finished processing a batch of {len(messages)} files for user: {user_id}")
 
 # Define command handler for /start
 @bot.on(events.NewMessage(pattern='/start'))
@@ -534,3 +388,4 @@ async def callback_query_handler(event):
 if __name__ == '__main__':
     logging.info("Bot started. Listening for messages...")
     bot.run_until_disconnected()
+            
