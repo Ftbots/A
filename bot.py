@@ -11,7 +11,7 @@ import json
 import re  # Import the regular expression module
 
 # Import configuration from config.py
-from config import API_ID, API_HASH, BOT_TOKEN, MEGA_EMAIL, MEGA_PASSWORD
+from config import API_ID, API_HASH, BOT_TOKEN, MEGA_EMAIL, MEGA_PASSWORD, LOG_CHANNEL_ID
 
 # Set up logging for debugging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +21,9 @@ bot = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 # Path for the accounts JSON file
 ACCOUNTS_FILE = 'mega_accounts.json'
+
+# Path for the logged users JSON file
+LOGGED_USERS_FILE = 'logged_users.json'
 
 # Load accounts data
 def load_accounts():
@@ -34,6 +37,20 @@ def load_accounts():
 def save_accounts(accounts):
     with open(ACCOUNTS_FILE, 'w') as f:
         json.dump(accounts, f, indent=4)
+
+# Load logged users data
+def load_logged_users():
+    try:
+        with open(LOGGED_USERS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+# Save logged users data
+def save_logged_users(logged_users):
+    with open(LOGGED_USERS_FILE, 'w') as f:
+        json.dump(list(logged_users), f, indent=4)
+
 
 # Get mega.py version
 mega_version = pkg_resources.get_distribution("mega.py").version
@@ -211,6 +228,10 @@ async def upload_to_mega(file_path, message, current_mega_account, max_retries=3
 # Load accounts data on startup
 accounts = load_accounts()
 
+# Load logged users data on startup
+logged_users = load_logged_users()
+
+
 # Store currently selected Mega account for each user
 user_accounts = {}
 
@@ -368,6 +389,7 @@ async def handle_message_default(event):
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_command(event):
     logging.info(f"Handling /start command from: {event.sender_id}")
+    user_id = str(event.sender_id)
     welcome_message = """
     Hello! I'm your Mega Uploader Bot.
     
@@ -385,6 +407,25 @@ async def start_command(event):
         ])
     await bot.send_message(event.chat_id, welcome_message, buttons=buttons)
     logging.info(f"Finished handling /start command from: {event.sender_id}")
+    
+    # Send log message to the log channel
+    try:
+        if user_id not in logged_users:
+            user = await bot.get_entity(event.sender_id)
+            username = user.username if user.username else "No Username"
+            log_message = (
+               f"#New_Bot_User\n\n"
+               f"» Username - {username}"
+            )
+            await bot.send_message(LOG_CHANNEL_ID, log_message)
+            logging.info(f"Log message sent to channel: {LOG_CHANNEL_ID} for user: {event.sender_id}")
+            
+            logged_users.add(user_id)
+            save_logged_users(logged_users)
+        else:
+           logging.info(f"User {event.sender_id} already logged")
+    except Exception as e:
+        logging.error(f"Error sending log message: {e}")
 
 # Initialize last edit times for progress bar
 last_edit_time_download = 0
@@ -401,4 +442,4 @@ async def callback_query_handler(event):
 if __name__ == '__main__':
     logging.info("Bot started. Listening for messages...")
     bot.run_until_disconnected()
-                
+        
