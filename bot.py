@@ -107,7 +107,7 @@ def format_size(size):
 
 
 # Function to display the progress bar
-async def display_progress(message, current, total, start_time, text, edit_message,  bars=10):
+async def display_progress(message, current, total, start_time, text, edit_message,  bars=10, cancel_button=False, download_id = None):
     if total == 0:
       return "0.00%"
     percentage = current / total * 100
@@ -142,11 +142,14 @@ async def display_progress(message, current, total, start_time, text, edit_messa
     # Define inline button
     buttons = ReplyInlineMarkup(rows=[
         KeyboardButtonRow(buttons=[
-           KeyboardButtonUrl(text='Owner ⚡', url='https://t.me/Nx_KRSHNA')
+           KeyboardButtonUrl(text='Owner ⚡', url='https://t.me/Nx_KRSHNA'),
+           
+        ]),
+          KeyboardButtonRow(buttons=[
+             KeyboardButtonCallback(text='Cancel', data=f'cancel_{download_id}'.encode()) if cancel_button else None,
         ])
     ])
-
-
+    
     if edit_message:
       try:
           await bot.edit_message(message, progress_text, buttons=buttons)
@@ -157,11 +160,11 @@ async def display_progress(message, current, total, start_time, text, edit_messa
 
 
 # Callback function for download progress
-async def download_progress_callback(current, total, message, start_time, edit_message):
+async def download_progress_callback(current, total, message, start_time, edit_message, download_id=None):
     global last_edit_time_download
     current_time = time.time()
     if current_time - last_edit_time_download >= 10:
-      await display_progress(message, current, total, start_time, "Downloading", edit_message)
+      await display_progress(message, current, total, start_time, "Downloading", edit_message, True, True, download_id)
       last_edit_time_download = current_time
     return current
 
@@ -176,8 +179,8 @@ async def upload_progress_callback(current, total, message, start_time, edit_mes
     return current
 
 # Helper async function for download progress callback
-async def download_progress_callback_helper(current, total, message, start_time, edit_message):
-    await download_progress_callback(current, total, message, start_time, edit_message)
+async def download_progress_callback_helper(current, total, message, start_time, edit_message, download_id=None):
+    await download_progress_callback(current, total, message, start_time, edit_message, download_id)
 
 # Function to upload file to Mega with retry logic
 async def upload_to_mega(file_path, message, current_mega_account, max_retries=3):
@@ -231,9 +234,11 @@ accounts = load_accounts()
 # Load logged users data on startup
 logged_users = load_logged_users()
 
-
 # Store currently selected Mega account for each user
 user_accounts = {}
+
+# Store currently active downloads
+active_downloads = {}
 
 # Function to add a new Mega account
 @bot.on(events.NewMessage(pattern=r'/addmega\s+(?P<email>[^\s]+)\s+(?P<password>.+)'))
@@ -338,7 +343,7 @@ async def handle_message_default(event):
                     logging.error("File name is None")
                     await event.respond("Error processing file upload")
                     return
-                    
+                
                 # Log file type
                 if isinstance(media, types.MessageMediaDocument) and hasattr(media, 'document') and media.document:
                     logging.info(f"File MIME type: {media.document.mime_type}")
@@ -347,9 +352,22 @@ async def handle_message_default(event):
 
                 start_time = time.time()
                 progress_message = await event.respond("Starting download...")
+                
+                # Add this download to active_downloads
+                download_id = event.id
+                active_downloads[download_id] = {
+                   "file_path" : file_path,
+                    "cancel" : False
+                }
+
 
                 logging.info(f"Downloading to {file_path}")
-                await bot.download_media(event.message, file=file_path, progress_callback=lambda current, total: download_progress_callback_helper(current, total, progress_message, start_time, True))
+                await bot.download_media(event.message, file=file_path, progress_callback=lambda current, total: download_progress_callback_helper(current, total, progress_message, start_time, True, download_id))
+
+                # Check if download has been cancelled
+                if active_downloads[download_id]['cancel']:
+                   await bot.edit_message(progress_message, "Download cancelled.")
+                   return
 
                 # After Download
                 file_size_after_download = os.path.getsize(file_path)
@@ -380,8 +398,10 @@ async def handle_message_default(event):
                 await event.respond("Error processing file upload")
             finally:
                 if file_path and os.path.exists(file_path):
-                  os.remove(file_path)
-                  logging.info(f"Removed downloaded file: {file_path}")
+                    os.remove(file_path)
+                    logging.info(f"Removed downloaded file: {file_path}")
+                if download_id in active_downloads:
+                   del active_downloads[download_id]   
         logging.info(f"Finished handle_message from: {event.sender_id}")
 
 
@@ -436,10 +456,26 @@ last_edit_time_upload = 0
 async def callback_query_handler(event):
    if event.data == b'help':
       await event.answer('Send /help command to show all available commands.')
+   elif event.data.startswith(b'cancel_'):
+      try:
+         download_id = int(event.data[7:].decode())
+         if download_id in active_downloads:
+           active_downloads[download_id]['cancel'] = True
+           await event.answer("Download cancelled")
+           logging.info(f"Download {download_id} cancelled by user {event.sender_id}")
+         else:
+             await event.answer("This download session is no longer active.")
+      except (ValueError, TypeError):
+           await event.answer("Invalid cancel request.")
+           logging.error(f"Invalid cancel request from: {event.sender_id}")
+      except Exception as e:
+           await event.answer("Error cancelling download")
+           logging.error(f"Error cancelling download {e} from: {event.sender_id}")
+
 
 
 # Run the bot
 if __name__ == '__main__':
     logging.info("Bot started. Listening for messages...")
     bot.run_until_disconnected()
-        
+                               
