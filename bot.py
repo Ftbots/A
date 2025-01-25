@@ -1,12 +1,11 @@
 
 import logging
 from telethon import TelegramClient, events, functions, types
-from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonRow, KeyboardButtonUrl, KeyboardButtonCallback, ReplyKeyboardMarkup
+from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonRow, KeyboardButtonCallback, ReplyKeyboardMarkup
 from mega import Mega
 import os
 import time
 import pkg_resources
-import asyncio
 
 # Import configuration from config.py
 from config import API_ID, API_HASH, BOT_TOKEN, MEGA_EMAIL, MEGA_PASSWORD
@@ -24,7 +23,6 @@ m = mega.login(MEGA_EMAIL, MEGA_PASSWORD)
 # Get mega.py version
 mega_version = pkg_resources.get_distribution("mega.py").version
 logging.info(f"Mega.py version: {mega_version}")
-
 
 # Function to safely extract file name and extension
 def get_file_name_and_ext(media):
@@ -65,109 +63,12 @@ def get_file_name_and_ext(media):
              file_ext = ""
     return file_name, file_ext
 
-
-# Function to format file size
-def format_size(size):
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size < 1024.0:
-            break
-        size /= 1024.0
-    return f"{size:.2f} {unit}"
-
-
-# Function to display the progress bar
-async def display_progress(message, current, total, start_time, text, edit_message,  bars=10):
-    if total == 0:
-      return "0.00%"
-    percentage = current / total * 100
-    filled_bars = int(percentage / (100 / bars))
-    progress_bar = '▪' * filled_bars + '▫' * (bars - filled_bars)
-    
-    elapsed_time = time.time() - start_time
-    if current > 0 and elapsed_time > 0 :
-      speed = current / elapsed_time
-    else:
-      speed = 0
-
-    if speed > 0:
-       remaining = (total - current) / speed
-       eta = f"{int(remaining)}s"
-    else:
-      eta = "N/A"
-      
-    current_size = format_size(current)
-    total_size = format_size(total)
-    speed_formatted = format_size(speed)
-    
-    progress_text = (
-        f"{text}: {percentage:.2f}%\n"
-        f"[{progress_bar}]\n"
-        f"{current_size} of {total_size}\n"
-        f"Speed: {speed_formatted}/sec\n"
-        f"ETA: {eta}\n\n"
-        f"Thanks for using\nPowered by NaughtyX"
-    )
-
-    # Define inline button
-    buttons = ReplyInlineMarkup(rows=[
-        KeyboardButtonRow(buttons=[
-           KeyboardButtonUrl(text='Owner ⚡', url='https://t.me/Nx_KRSHNA')
-        ])
-    ])
-
-
-    if edit_message:
-      try:
-          await bot.edit_message(message, progress_text, buttons=buttons)
-      except Exception as e:
-          logging.error(f"Error editing message: {e}")
-    else:
-        return progress_text
-
-
-# Callback function for download progress
-async def download_progress_callback(current, total, message, start_time, edit_message):
-    global last_edit_time_download
-    current_time = time.time()
-    if current_time - last_edit_time_download >= 10:
-      await display_progress(message, current, total, start_time, "Downloading", edit_message)
-      last_edit_time_download = current_time
-    return current
-
-
-# Callback function for upload progress
-async def upload_progress_callback(current, total, message, start_time, edit_message):
-    global last_edit_time_upload
-    current_time = time.time()
-    if current_time - last_edit_time_upload >= 10:
-        await display_progress(message, current, total, start_time, "Uploading", edit_message)
-        last_edit_time_upload = current_time
-    return current
-
-# Helper async function for download progress callback
-async def download_progress_callback_helper(current, total, message, start_time, edit_message):
-    await download_progress_callback(current, total, message, start_time, edit_message)
-
 # Function to upload file to Mega with retry logic
-async def upload_to_mega(file_path, message, max_retries=3):
+async def upload_to_mega(file_path, max_retries=3):
     for attempt in range(max_retries):
         try:
-            start_time = time.time()
-            total_size = os.path.getsize(file_path)
-            uploaded_size = 0
-            
-            # Use m.upload with file path
             mega_file = m.upload(file_path)
-            
-            # Manually update the progress
-            while uploaded_size < total_size:
-                current_size = os.path.getsize(file_path)
-                if current_size > uploaded_size:
-                    uploaded_size = current_size
-                    await upload_progress_callback(uploaded_size, total_size, message, start_time, True)
-            
             return m.get_upload_link(mega_file)
-            
         except Exception as e:
             logging.error(f"Mega upload error (attempt {attempt + 1}): {e}")
             if attempt < max_retries - 1:
@@ -176,6 +77,7 @@ async def upload_to_mega(file_path, message, max_retries=3):
               logging.error("Mega upload failed after multiple retries")
               return None
 
+
 # Define command handler for /start
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_command(event):
@@ -183,9 +85,18 @@ async def start_command(event):
     welcome_message = """
     Hello! I'm your Mega Uploader Bot.
     
-    Send me a file, and I'll upload it to your Mega account. 
+    I can help you upload files directly to your Mega account. Here's how to use me:
     
-    Use /help for more info.
+    1. Simply send me a file, and I'll upload it to your Mega account and provide you with the shareable link.
+    
+    Here are the available commands:
+    
+    - `/start`: Shows this welcome message and instructions.
+    - `/help`:  Shows all available command.
+
+    If you have any questions please reach out to support.
+
+    Bot version: 1.0.0
     
     """
 
@@ -197,10 +108,6 @@ async def start_command(event):
         ])
     await bot.send_message(event.chat_id, welcome_message, buttons=buttons)
     logging.info(f"Finished handling /start command from: {event.sender_id}")
-
-# Initialize last edit times for progress bar
-last_edit_time_download = 0
-last_edit_time_upload = 0
 
 # Bot's main message handler
 @bot.on(events.NewMessage)
@@ -231,11 +138,8 @@ async def handle_message(event):
                     # Before Download
                     logging.info(f"File size before download: {media.document.size}")
 
-                start_time = time.time()
-                progress_message = await event.respond("Starting download...")
-
                 logging.info(f"Downloading to {file_path}")
-                await bot.download_media(event.message, file=file_path, progress_callback=lambda current, total: download_progress_callback_helper(current, total, progress_message, start_time, True))
+                await bot.download_media(event.message, file=file_path)
 
                 # After Download
                 file_size_after_download = os.path.getsize(file_path)
@@ -243,13 +147,12 @@ async def handle_message(event):
 
                 # Upload the file to Mega
                 logging.info("Uploading to mega")
-                await bot.edit_message(progress_message, "Starting upload...")
-                mega_link = await upload_to_mega(file_path, progress_message)
+                mega_link = await upload_to_mega(file_path)
 
                 if mega_link:
-                   await bot.edit_message(progress_message, f"File uploaded to Mega: {mega_link}")
+                   await event.respond(f"File uploaded to Mega: {mega_link}")
                 else:
-                   await bot.edit_message(progress_message, "Failed to upload file to Mega.")
+                   await event.respond("Failed to upload file to Mega.")
             except Exception as e:
                 logging.error(f"Error processing message: {e}")
                 await event.respond("Error processing file upload")
@@ -258,7 +161,6 @@ async def handle_message(event):
                   os.remove(file_path)
                   logging.info(f"Removed downloaded file: {file_path}")
         logging.info(f"Finished handle_message from: {event.sender_id}")
-
 
 # Bot's callback query handler
 @bot.on(events.CallbackQuery)
@@ -271,4 +173,4 @@ async def callback_query_handler(event):
 if __name__ == '__main__':
     logging.info("Bot started. Listening for messages...")
     bot.run_until_disconnected()
-                
+    
