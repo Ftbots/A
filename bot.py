@@ -1,7 +1,7 @@
 
 import logging
 from telethon import TelegramClient, events, functions, types
-from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonRow, KeyboardButtonCallback, ReplyKeyboardMarkup
+from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonRow, KeyboardButtonUrl, KeyboardButtonCallback, ReplyKeyboardMarkup
 from mega import Mega
 import os
 import time
@@ -107,9 +107,18 @@ async def display_progress(message, current, total, start_time, text, edit_messa
         f"ETA: {eta}\n\n"
         f"Thanks for using\nPowered by NaughtyX"
     )
+
+    # Define inline button
+    buttons = ReplyInlineMarkup(rows=[
+        KeyboardButtonRow(buttons=[
+           KeyboardButtonUrl(text='Owner ⚡', url='https://t.me/Nx_KRSHNA')
+        ])
+    ])
+
+
     if edit_message:
       try:
-          await bot.edit_message(message, progress_text)
+          await bot.edit_message(message, progress_text, buttons=buttons)
       except Exception as e:
           logging.error(f"Error editing message: {e}")
     else:
@@ -156,7 +165,7 @@ async def upload_to_mega(file_path, message, max_retries=3):
                 if current_size > uploaded_size:
                     uploaded_size = current_size
                     await upload_progress_callback(uploaded_size, total_size, message, start_time, True)
-                    
+            
             return m.get_upload_link(mega_file)
             
         except Exception as e:
