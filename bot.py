@@ -183,18 +183,9 @@ async def start_command(event):
     welcome_message = """
     Hello! I'm your Mega Uploader Bot.
     
-    I can help you upload files directly to your Mega account. Here's how to use me:
+    Send me a file, and I'll upload it to your Mega account. 
     
-    1. Simply send me a file, and I'll upload it to your Mega account and provide you with the shareable link.
-    
-    Here are the available commands:
-    
-    - `/start`: Shows this welcome message and instructions.
-    - `/help`:  Shows all available command.
-
-    If you have any questions please reach out to support.
-
-    Bot version: 1.0.0
+    Use /help for more info.
     
     """
 
@@ -280,4 +271,4 @@ async def callback_query_handler(event):
 if __name__ == '__main__':
     logging.info("Bot started. Listening for messages...")
     bot.run_until_disconnected()
-    
+                
