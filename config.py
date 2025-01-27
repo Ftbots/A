@@ -10,6 +10,7 @@ LOG_CHANNEL_ID = -1002320532990
 
 ADMIN_USER_IDS = [891959176, 987654321]
 
-
-
-
+# MongoDB Configuration
+MONGO_URI = "mongodb+srv://mongo920:LAZkTQrPibzZDArm@cluster0.wbyyv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+DATABASE_NAME = "mydb"
+COLLECTION_NAME = "my"
