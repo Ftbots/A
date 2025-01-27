@@ -697,11 +697,25 @@ async def rename_command(event):
 
     await bot.send_message(event.chat_id, "Please send the numbers of the accounts you want to rename, separated by space, Example: `1 2 3`")
     
-    @bot.on(events.NewMessage(from_users=event.sender_id))
-    async def rename_account_selection_handler(selection_event):
-        try:
-            selected_indices = list(map(int, selection_event.message.text.split()))
-            
-            valid_accounts = []
-            invalid_indices = []
-            for index in selected:
+    @bot.on(events.NewMessage(from_users=event.sender_id))  # Ensure this line is aligned with the rest of the script
+async def rename_account_selection_handler(selection_event):
+    try:
+        selected_indices = list(map(int, selection_event.message.text.split()))
+        
+        valid_accounts = []
+        invalid_indices = []
+        
+        # Assuming 'selected' is defined earlier in the code
+        for index in selected:
+            # Add your logic here, e.g., validate the index
+            if index in selected_indices:
+                valid_accounts.append(index)  # Example logic
+            else:
+                invalid_indices.append(index)
+
+        # Example: Send response back
+        await bot.send_message(event.sender_id, f"Valid: {valid_accounts}, Invalid: {invalid_indices}")
+
+    except Exception as e:
+        # Handle the error appropriately
+        await bot.send_message(event.sender_id, f"An error occurred: {str(e)}")
