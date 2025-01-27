@@ -697,7 +697,7 @@ async def rename_command(event):
 
     await bot.send_message(event.chat_id, "Please send the numbers of the accounts you want to rename, separated by space, Example: `1 2 3`")
     
-    @bot.on(events.NewMessage(from_users=event.sender_id))  # Ensure this line is aligned with the rest of the script
+    @bot.on(events.NewMessage(from_users=event.sender_id))
 async def rename_account_selection_handler(selection_event):
     try:
         selected_indices = list(map(int, selection_event.message.text.split()))
