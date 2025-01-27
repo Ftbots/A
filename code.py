@@ -704,4 +704,4 @@ async def rename_command(event):
             
             valid_accounts = []
             invalid_indices = []
-            for index in selected
+            for index in selected:
